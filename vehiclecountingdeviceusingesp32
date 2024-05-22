@@ -1,0 +1,129 @@
+'''
+from machine import Pin
+from time import sleep, ticks_ms, ticks_diff
+import esp32
+
+entryLoopPin = 5  # Entry loop detector pin
+exitLoopPin = 4   # Exit loop detector pin
+totalParkingSlots = 100  # Total number of parking slots
+
+debounceDelay = 50  # Debounce delay in milliseconds
+
+# EEPROM emulation using NVS (Non-Volatile Storage)
+nvs = esp32.NVS('storage')
+
+# Check if 'vacantSlots' exists in NVS
+try:
+    vacantSlots = nvs.get_i32('vacantSlots')
+except OSError:
+    vacantSlots = totalParkingSlots
+    nvs.set_i32('vacantSlots', vacantSlots)
+
+lastEntryTime = 0
+lastExitTime = 0
+
+entryLoop = Pin(entryLoopPin, Pin.IN, Pin.PULL_UP)
+exitLoop = Pin(exitLoopPin, Pin.IN, Pin.PULL_UP)
+
+def printAvailableSlots():
+    print("Available Parking Slots:", vacantSlots)
+
+printAvailableSlots()
+
+while True:
+    currentTime = ticks_ms()
+    
+    entryReading = entryLoop.value()
+    exitReading = exitLoop.value()
+    
+    # Handle entry detection
+    if entryReading == 0 and (currentTime - lastEntryTime >= debounceDelay):
+        lastEntryTime = currentTime
+        if vacantSlots > 0:
+            vacantSlots -= 1
+            printAvailableSlots()
+            nvs.set_i32('vacantSlots', vacantSlots)
+            sleep(1)  # Delay to avoid rapid changes due to loop execution speed
+    
+    # Handle exit detection
+    if exitReading == 0 and (currentTime - lastExitTime >= debounceDelay):
+        lastExitTime = currentTime
+        if vacantSlots < totalParkingSlots:
+            vacantSlots += 1
+            printAvailableSlots()
+            nvs.set_i32('vacantSlots', vacantSlots)
+            sleep(1)  # Delay to avoid rapid changes due to loop execution speed
+    
+    sleep(0.01)  # Small delay to reduce CPU usage
+'''
+from machine import Pin, UART
+from time import sleep, ticks_ms
+import esp32
+
+# Configuration
+entryLoopPin = 5  # Entry loop detector pin
+exitLoopPin = 4   # Exit loop detector pin
+totalParkingSlots = 100  # Total number of parking slots
+uart_tx_pin = 16
+uart_rx_pin = 17
+debounceDelay = 50  # Debounce delay in milliseconds
+
+# Initialize NVS for storing the vacantSlots value
+nvs = esp32.NVS('storage')
+
+# Try to get the 'vacantSlots' value from NVS, otherwise initialize it
+try:
+    vacantSlots = nvs.get_i32('vacantSlots')
+except OSError:
+    vacantSlots = totalParkingSlots
+    nvs.set_i32('vacantSlots', vacantSlots)
+
+# Set up entry and exit loop detectors
+entryLoop = Pin(entryLoopPin, Pin.IN, Pin.PULL_UP)
+exitLoop = Pin(exitLoopPin, Pin.IN, Pin.PULL_UP)
+
+# Initialize UART
+uart = UART(2, baudrate=9600, tx=uart_tx_pin, rx=uart_rx_pin)
+
+def printAvailableSlots():
+    print("Available Parking Slots:", vacantSlots)
+    sendAvailableSlots(vacantSlots)
+
+def sendAvailableSlots(slots):
+    # Create the protocol message as an array of bytes
+    message = bytearray([0xAA, 0x01, 0x80, 0xA0, slots, 0x55])
+    uart.write(message)
+
+# Print initial available slots
+printAvailableSlots()
+
+lastEntryTime = 0
+lastExitTime = 0
+
+# Main loop
+while True:
+    currentTime = ticks_ms()
+    
+    entryReading = entryLoop.value()
+    exitReading = exitLoop.value()
+    
+    # Handle entry detection
+    if entryReading == 0 and (currentTime - lastEntryTime >= debounceDelay):
+        lastEntryTime = currentTime
+        if vacantSlots > 0:
+            vacantSlots -= 1
+            printAvailableSlots()
+            nvs.set_i32('vacantSlots', vacantSlots)
+            sleep(1)  # Delay to avoid rapid changes due to loop execution speed
+    
+    # Handle exit detection
+    if exitReading == 0 and (currentTime - lastExitTime >= debounceDelay):
+        lastExitTime = currentTime
+        if vacantSlots < totalParkingSlots:
+            vacantSlots += 1
+            printAvailableSlots()
+            nvs.set_i32('vacantSlots', vacantSlots)
+            sleep(1)  # Delay to avoid rapid changes due to loop execution speed
+    
+    sleep(0.01)  # Small delay to reduce CPU usage
+
