@@ -5,7 +5,7 @@ import esp32
 # Configuration
 entryLoopPin = 5  # Entry loop detector pin
 exitLoopPin = 4   # Exit loop detector pin
-totalParkingSlots = 100  # Total number of parking slots
+totalParkingSlots = 500  # Increased to accommodate values like 495
 uart_tx_pin = 16
 uart_rx_pin = 17
 debounceDelay = 50  # Debounce delay in milliseconds
@@ -28,8 +28,11 @@ exitLoop = Pin(exitLoopPin, Pin.IN, Pin.PULL_UP)
 uart = UART(2, baudrate=9600, tx=uart_tx_pin, rx=uart_rx_pin)
 
 def sendAvailableSlots(slots):
+    # Split the slots value into two bytes
+    high_byte = (slots >> 8) & 0xFF
+    low_byte = slots & 0xFF
     # Create the protocol message as an array of bytes
-    message = bytearray([0xAA, 0x01, 0x80, 0xA0, slots, 0x55])
+    message = bytearray([0xAA, 0x01, 0x80, 0xA0, high_byte, low_byte, 0x55])
     uart.write(message)
 
 def printAvailableSlots():
@@ -76,5 +79,4 @@ while True:
                 sleep(1)  # Delay to avoid rapid changes due to loop execution speed
     
     sleep(0.01)  # Small delay to reduce CPU usage
-
 
