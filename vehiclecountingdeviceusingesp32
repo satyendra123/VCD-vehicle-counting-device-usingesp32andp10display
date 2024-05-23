@@ -80,4 +80,119 @@ while True:
                 sleep(1)  # Delay to avoid rapid changes due to loop execution speed   
     sleep(0.01)  # Small delay to reduce CPU usage
 
-#EXAMPLE-2 the first one is working fine. but i want that i can set the totalParkingSlots using the protocol to make it dynamic. 
+#EXAMPLE-2 the first one is working fine. but i want that i can set the totalParkingSlots using the protocol to make it dynamic. S900800 means the 900 tells the totalSlots and the 800 tells the vacantSlots.aur to agar humne starting me bydefault ye totalSlots ko 999 lega aur vacantSlots bhi 999 lega
+#aur hum protocol ke through in dono values totalSlots and vacantSlots ko dynamically set kar sakte hai
+from machine import Pin, UART
+from time import sleep, ticks_ms
+import esp32
+
+# Configuration
+entryLoopPin = 5  # Entry loop detector pin
+exitLoopPin = 4   # Exit loop detector pin
+uart_tx_pin = 16
+uart_rx_pin = 17
+debounceDelay = 50  # Debounce delay in milliseconds
+
+# Initialize NVS for storing the vacantSlots and totalParkingSlots values
+nvs = esp32.NVS('storage')
+
+# Try to get the 'totalParkingSlots' value from NVS, otherwise initialize it to a default value
+try:
+    totalSlots = nvs.get_i32('totalSlots')
+except OSError:
+    totalSlots = 999  # Default total parking slots
+    nvs.set_i32('totalSlots', totalSlots)
+
+# Try to get the 'vacantSlots' value from NVS, otherwise initialize it to the total parking slots
+try:
+    vacantSlots = nvs.get_i32('vacantSlots')
+except OSError:
+    vacantSlots = totalSlots
+    nvs.set_i32('vacantSlots', vacantSlots)
+
+# Set up entry and exit loop detectors
+entryLoop = Pin(entryLoopPin, Pin.IN, Pin.PULL_UP)
+exitLoop = Pin(exitLoopPin, Pin.IN, Pin.PULL_UP)
+
+# Initialize UART
+uart = UART(2, baudrate=9600, tx=uart_tx_pin, rx=uart_rx_pin)
+
+def sendAvailableSlots(total, slots):
+    # Split the total and slots values into two bytes each
+    slots_high_byte = (slots >> 8) & 0xFF
+    slots_low_byte = slots & 0xFF
+    # Create the protocol message as an array of bytes
+    message = bytearray([0xAA, 0x01, 0x80, 0xA0,slots_high_byte, slots_low_byte, 0x55])
+    uart.write(message)
+
+def printAvailableSlots():
+    print("Available Parking Slots:", vacantSlots)
+
+def printTotalSlots():
+    print("Total Parking Slots:", totalSlots)
+
+# Print initial available slots
+printAvailableSlots()
+printTotalSlots()
+sendAvailableSlots(totalSlots, vacantSlots)
+
+lastEntryTime = 0
+lastExitTime = 0
+
+# Main loop
+while True:
+    currentTime = ticks_ms()
+    
+    entryReading = entryLoop.value()
+    exitReading = exitLoop.value()
+    
+    # Handle entry detection
+    if entryReading == 0 and (currentTime - lastEntryTime >= debounceDelay):
+        # Debouncing: Ensure the reading is stable
+        sleep(0.05)
+        if entryLoop.value() == 0:
+            lastEntryTime = currentTime
+            if vacantSlots > 0:
+                vacantSlots -= 1
+                printAvailableSlots()
+                sendAvailableSlots(totalSlots, vacantSlots)
+                nvs.set_i32('vacantSlots', vacantSlots)
+                sleep(1)  # Delay to avoid rapid changes due to loop execution speed
+    
+    # Handle exit detection
+    if exitReading == 0 and (currentTime - lastExitTime >= debounceDelay):
+        # Debouncing: Ensure the reading is stable
+        sleep(0.05)
+        if exitLoop.value() == 0:
+            lastExitTime = currentTime
+            if vacantSlots < totalSlots:
+                vacantSlots += 1
+                printAvailableSlots()
+                sendAvailableSlots(totalSlots, vacantSlots)
+                nvs.set_i32('vacantSlots', vacantSlots)
+                sleep(1)  # Delay to avoid rapid changes due to loop execution speed
+    
+    # Check if data is available on UART
+    if uart.any():
+        command = uart.read(1)
+        if command == b'S':
+            # Expecting the format 'S<total_slots><vacant_slots>', e.g., 'S500400' it sends the ascii data
+            total_string = uart.read(3)
+            vacant_string = uart.read(3)
+            try:
+                total = int(total_string)
+                vacant = int(vacant_string)
+                if total > 0 and 0 <= vacant <= total:
+                    totalSlots = total
+                    vacantSlots = vacant
+                    nvs.set_i32('totalSlots', totalSlots)
+                    nvs.set_i32('vacantSlots', vacantSlots)
+                    print("Total Parking Slots set to:", totalSlots)
+                    print("Available Parking Slots set to:", vacantSlots)
+                    sendAvailableSlots(totalSlots, vacantSlots)
+            except ValueError:
+                pass  # Ignore if conversion to integer fails
+    
+    sleep(0.01)  # Small delay to reduce CPU usage
+
+
