@@ -402,3 +402,25 @@ void show_arrow(const byte* arrow) {
     display.drawBitmap(x + 22, 2, arrow);
     display.refresh();
 }
+//Note- it works for the two digits number and the arrow sign. but suppose that i want to display the arrow sign and the display the 3 digit number then suppose i have 4 slots so in each slot i will print the number and the arrow
+/*
+void show_text(int vacancy) {
+    // Clear the entire display before updating
+    display.clear();
+    display.setFont(TimesNewRoman12); // Use a smaller font
+
+    char vacancyText[4];
+    sprintf(vacancyText, "%d", vacancy);
+
+    int x = (display.width() - display.textWidth(vacancyText)) / 2; // Center the text horizontally
+    display.drawText(x - 3, 0, vacancyText); // Adjust the position for text
+    display.refresh(); // Refresh the display after drawing text
+}
+
+void show_arrow(const byte* arrow) {
+    // Clear the specific area for the arrow
+    int x = (display.width() - 32) / 2; // Center the bitmap horizontally
+    display.drawBitmap(x + 24, 2, arrow);
+    display.refresh();
+}
+*/
