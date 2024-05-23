@@ -1,0 +1,19 @@
+import esp32
+# Initialize NVS
+nvs = esp32.NVS('storage')
+# List of known keys that need to be erased
+keys_to_erase = ['vacantSlots', 'totalParkingSlots']
+
+# Erase all keys in the list
+for key in keys_to_erase:
+    try:
+        nvs.erase_key(key)
+        print(f"Key '{key}' erased successfully.")
+    except OSError as e:
+        print(f"Error erasing key '{key}': {e}")
+
+# Commit changes to make sure they are saved
+nvs.commit()
+
+
+
