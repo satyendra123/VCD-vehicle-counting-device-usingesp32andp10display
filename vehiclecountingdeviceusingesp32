@@ -81,7 +81,7 @@ while True:
     sleep(0.01)  # Small delay to reduce CPU usage
 
 #EXAMPLE-2 the first one is working fine. but i want that i can set the totalParkingSlots using the protocol to make it dynamic. S900800 means the 900 tells the totalSlots and the 800 tells the vacantSlots.aur to agar humne starting me bydefault ye totalSlots ko 999 lega aur vacantSlots bhi 999 lega
-#aur hum protocol ke through in dono values totalSlots and vacantSlots ko dynamically set kar sakte hai
+#aur hum protocol ke through in dono values totalSlots and vacantSlots ko dynamically set kar sakte hai. S900800 ascii protocol send by the docklight software.
 from machine import Pin, UART
 from time import sleep, ticks_ms
 import esp32
