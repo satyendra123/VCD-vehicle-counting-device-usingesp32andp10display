@@ -1,3 +1,4 @@
+#EXAMPLE-1 it send sthe AA 01 80 A0 high_byte Low_byte 55. and calculate the vacancy data from it and display it in the p10 display
 from machine import Pin, UART
 from time import sleep, ticks_ms
 import esp32
