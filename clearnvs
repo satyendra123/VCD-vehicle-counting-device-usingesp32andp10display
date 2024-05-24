@@ -1,3 +1,4 @@
+#EXAMPLE-1 humne apne VCD wale code me vacantSlots aur totalSlots ka use kiya hai. so hume unhe clear krne ke liye bhi same usi name ka use karna padhega. 
 import esp32
 # Initialize NVS
 nvs = esp32.NVS('storage')
