@@ -2,7 +2,7 @@ import esp32
 # Initialize NVS
 nvs = esp32.NVS('storage')
 # List of known keys that need to be erased
-keys_to_erase = ['vacantSlots', 'totalParkingSlots']
+keys_to_erase = ['vacantSlots', 'totalSlots']
 
 # Erase all keys in the list
 for key in keys_to_erase:
