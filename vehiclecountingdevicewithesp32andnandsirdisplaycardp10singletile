@@ -1,4 +1,4 @@
-#EXAMPLE-2 in this i am using the nand sir p10 RGB display for displaying the data.so i am integrate it with my VCD controller. so that it sends the data to this and it display the data 
+#EXAMPLE-1 in this i am using the nand sir p10 RGB display for displaying the data.so i am integrate it with my VCD controller. so that it sends the data to this and it display the data 
 from machine import Pin, UART
 from time import sleep, ticks_ms
 import esp32
@@ -117,6 +117,7 @@ while True:
     sleep(0.01)  # Small delay to reduce CPU usage
 
 '''
+#EXAMPLE-2 this is not tested now. in this we have removed the arrow sign and display the three digit data.
 from machine import Pin, UART
 from time import sleep, ticks_ms
 import esp32
