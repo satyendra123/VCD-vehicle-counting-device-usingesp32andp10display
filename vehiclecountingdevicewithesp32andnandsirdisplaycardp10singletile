@@ -1,4 +1,5 @@
 #EXAMPLE-1 in this i am using the nand sir p10 RGB display for displaying the data.so i am integrate it with my VCD controller. so that it sends the data to this and it display the data 
+#nand sir ke display me black is A and red is B and green is gnd. and in our esp32 i have connected red to A and green wire to B. so connection is simply black se red connect hai aur red se green connect hai
 from machine import Pin, UART
 from time import sleep, ticks_ms
 import esp32
