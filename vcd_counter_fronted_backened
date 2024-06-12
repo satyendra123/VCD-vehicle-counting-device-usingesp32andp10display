@@ -152,7 +152,7 @@ while True:
     
     sleep(0.01)
 
-# kota me jo dusra wala controller hai uska connection thoda alag tha rx tx wala 16 17 ke liye to maine code me jakar change kar diya to wo chalne laga tha
+# EXAMPLE-4 kota me jo dusra wala controller hai uska connection thoda alag tha rx tx wala 16 17 ke liye to maine code me jakar change kar diya to wo chalne laga tha
 from machine import Pin, UART
 from time import sleep, ticks_ms
 import esp32
