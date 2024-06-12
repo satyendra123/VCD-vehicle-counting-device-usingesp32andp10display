@@ -1,6 +1,8 @@
 #EXAMPLE-3 in this code i am sending the data through the different rs485 for storing it to the database. rs485 ka rx pin  16 par aur tx pin 17 par connect hai. uart = UART(2, baudrate=9600, tx=Pin(17), rx=Pin(16)) aur dusre uart ka rx pin 32 par aur tx pin 33 par connect hai
 # uart2 = UART(1, baudrate=9600, tx=Pin(33), rx=Pin(32)) kuch is tarah se. aur dono loop ke com ko connect krke gnd kar diye hai aur entry ke NO ko p5 par aur exit ke NO ko p4 par connect krenge. esp32 me usb se power denge jo ki smps se connect rhega
 #aur hum abhi to connect kar rhe hai loop ke com ko esp32 ke gnd se... lekin agar isse problem hota hai to hum loop ke com ko connect krke smps ke ground se connect krenge
+#Nand sir ka jo display ka card hai usme black wala A hai, red wala B hai, aur green wala ground ke liye hai.
+
 from machine import Pin, UART
 from time import sleep, ticks_ms
 import esp32
@@ -51,6 +53,156 @@ exitLoop = Pin(exitLoopPin, Pin.IN, Pin.PULL_UP)
 # Initialize UART
 # Initialize UARTs
 uart = UART(2, baudrate=9600, tx=Pin(17), rx=Pin(16))
+uart2 = UART(1, baudrate=9600, tx=Pin(33), rx=Pin(32))
+
+# Disable REPL on UART0
+#uart = UART(0, 9600, tx=Pin(3), rx=Pin(1))
+#uart.init(9600, bits=8, parity=None, stop=1)
+
+#this will send the data to the nand sir p10 RGB display
+'''
+def sendAvailableSlots(slots):
+    slots_str = f'{total_vacancy:02d}'
+    message = f'|C|1|4|1|28-0-#u{slots_str}|'
+    print(message)
+'''
+
+# when using the pin 16,17 for sending the data to the nand sir p10 display
+def sendAvailableSlots(slots):
+    slots_str = f'{slots:02d}'
+    message = f'|C|1|4|1|28-0-#u{slots_str}|'
+    print(f"Sending message: {message}")  # Debug print
+    uart.write(message.encode('ascii'))  # Ensure the message is encoded as ASCII
+
+def sendNewUARTData(totalSlots, vacantSlots, totalEntry, totalExit):
+    data_array = [0xAA, totalSlots, vacantSlots, totalEntry, totalExit, 0xCC]
+    uart2.write(bytearray(data_array))
+    print(f"New UART Data Sent: {data_array}")
+
+def printAvailableSlots():
+    print("Available Parking Slots:", vacantSlots)
+
+def printTotalSlots():
+    print("Total Parking Slots:", totalSlots)
+
+# Print initial available slots
+printAvailableSlots()
+printTotalSlots()
+sendAvailableSlots(vacantSlots)
+
+lastEntryTime = 0
+lastExitTime = 0
+
+# Main loop
+while True:
+    currentTime = ticks_ms()
+    
+    entryReading = entryLoop.value()
+    exitReading = exitLoop.value()
+    
+    # Handle entry detection
+    if entryReading == 0 and (currentTime - lastEntryTime >= debounceDelay):
+        sleep(0.05)
+        if entryLoop.value() == 0:
+            lastEntryTime = currentTime
+            if vacantSlots > 0:
+                vacantSlots -= 1
+                totalEntry += 1
+                printAvailableSlots()
+                sendAvailableSlots(vacantSlots)
+                sendNewUARTData(totalSlots, vacantSlots, totalEntry, totalExit)
+                nvs.set_i32('vacantSlots', vacantSlots)
+                nvs.set_i32('totalEntry', totalEntry)
+                sleep(1)
+    
+    # Handle exit detection
+    if exitReading == 0 and (currentTime - lastExitTime >= debounceDelay):
+        sleep(0.05)
+        if exitLoop.value() == 0:
+            lastExitTime = currentTime
+            if vacantSlots < totalSlots:
+                vacantSlots += 1
+                totalExit += 1
+                printAvailableSlots()
+                sendAvailableSlots(vacantSlots)
+                sendNewUARTData(totalSlots, vacantSlots, totalEntry, totalExit)
+                nvs.set_i32('vacantSlots', vacantSlots)
+                nvs.set_i32('totalExit', totalExit)
+                sleep(1)
+    
+    # Check if data is available on UART
+    if uart.any():
+        command = uart.read(1)
+        if command == b'S':
+            total_string = uart.read(3)
+            vacant_string = uart.read(3)
+            try:
+                total = int(total_string)
+                vacant = int(vacant_string)
+                if total > 0 and 0 <= vacant <= total:
+                    totalSlots = total
+                    vacantSlots = vacant
+                    nvs.set_i32('totalSlots', totalSlots)
+                    nvs.set_i32('vacantSlots', vacantSlots)
+                    print("Total Parking Slots set to:", totalSlots)
+                    print("Available Parking Slots set to:", vacantSlots)
+                    sendAvailableSlots(vacantSlots)
+            except ValueError:
+                pass
+    
+    sleep(0.01)
+
+# kota me jo dusra wala controller hai uska connection thoda alag tha rx tx wala 16 17 ke liye to maine code me jakar change kar diya to wo chalne laga tha
+from machine import Pin, UART
+from time import sleep, ticks_ms
+import esp32
+
+# Configuration
+entryLoopPin = 5  # Entry loop detector pin
+exitLoopPin = 4   # Exit loop detector pin
+debounceDelay = 50  # Debounce delay in milliseconds
+
+nvs = esp32.NVS('storage')
+
+try:
+    totalSlots = nvs.get_i32('totalSlots')
+    print("Total Parking Slots retrieved from NVS:", totalSlots)
+except OSError:
+    totalSlots = 99  # Default total parking slots
+    nvs.set_i32('totalSlots', totalSlots)
+    print("Total Parking Slots initialized to default:", totalSlots)
+
+try:
+    vacantSlots = nvs.get_i32('vacantSlots')
+    print("Vacant Parking Slots retrieved from NVS:", vacantSlots)
+except OSError:
+    vacantSlots = totalSlots
+    nvs.set_i32('vacantSlots', vacantSlots)
+    print("Vacant Parking Slots initialized to default:", vacantSlots)
+
+try:
+    totalEntry = nvs.get_i32('totalEntry')
+    print("Total Entry retrieved from NVS:", totalEntry)
+except OSError:
+    totalEntry = 0
+    nvs.set_i32('totalEntry', totalEntry)
+    print("Total Entry initialized to default:", totalEntry)
+
+try:
+    totalExit = nvs.get_i32('totalExit')
+    print("Total Exit retrieved from NVS:", totalExit)
+except OSError:
+    totalExit = 0
+    nvs.set_i32('totalExit', totalExit)
+    print("Total Exit initialized to default:", totalExit)
+
+# Set up entry and exit loop detectors
+entryLoop = Pin(entryLoopPin, Pin.IN, Pin.PULL_UP)
+exitLoop = Pin(exitLoopPin, Pin.IN, Pin.PULL_UP)
+
+# Initialize UART
+# Initialize UARTs
+uart = UART(2, baudrate=9600, tx=Pin(16), rx=Pin(17))
 uart2 = UART(1, baudrate=9600, tx=Pin(33), rx=Pin(32))
 
 # Disable REPL on UART0
