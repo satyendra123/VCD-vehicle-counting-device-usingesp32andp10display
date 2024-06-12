@@ -1,5 +1,6 @@
 #EXAMPLE-3 in this code i am sending the data through the different rs485 for storing it to the database. rs485 ka rx pin  16 par aur tx pin 17 par connect hai. uart = UART(2, baudrate=9600, tx=Pin(17), rx=Pin(16)) aur dusre uart ka rx pin 32 par aur tx pin 33 par connect hai
-# uart2 = UART(1, baudrate=9600, tx=Pin(33), rx=Pin(32)) kuch is tarah se. 
+# uart2 = UART(1, baudrate=9600, tx=Pin(33), rx=Pin(32)) kuch is tarah se. aur dono loop ke com ko connect krke gnd kar diye hai aur entry ke NO ko p5 par aur exit ke NO ko p4 par connect krenge. esp32 me usb se power denge jo ki smps se connect rhega
+#aur hum abhi to connect kar rhe hai loop ke com ko esp32 ke gnd se... lekin agar isse problem hota hai to hum loop ke com ko connect krke smps ke ground se connect krenge
 from machine import Pin, UART
 from time import sleep, ticks_ms
 import esp32
