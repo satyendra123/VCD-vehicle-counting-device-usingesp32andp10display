@@ -1,0 +1,49 @@
+import serial
+import mysql.connector
+from datetime import datetime
+
+conn = mysql.connector.connect(host="localhost", user="root", password="", database="vcd_counter")
+c = conn.cursor()
+
+static_data = b'\xaa\x63\x56\x2e\x21\xcc'  # Static data for testing
+#ser = serial.Serial("COM1", baudrate=9600, timeout=0.1)
+ser=1
+def receive_data():
+    #data = ser.readline().strip()
+    data = static_data
+    return data
+
+def extract_decimal_values(hex_data):
+    if not hex_data:
+        print("No data received.")
+        return None, None, None, None
+
+    bytes_list = hex_data.split(":")
+    decimal_values = [int(byte, 16) for byte in bytes_list if byte]
+
+    if len(decimal_values) < 5:
+        print("Invalid data format:", hex_data)
+        return None, None, None, None
+
+    total_space = decimal_values[1]
+    total_available = decimal_values[2]
+    total_entry = decimal_values[3]
+    total_exit = decimal_values[4]
+
+    return total_space, total_available, total_entry, total_exit
+
+while True:
+    #if ser.in_waiting > 0:
+        data_bytes = receive_data()
+        hex_data = ":".join("{:02x}".format(byte) for byte in data_bytes)
+        print("Received data:", hex_data)
+        total_space, total_available, total_entry, total_exit = extract_decimal_values(hex_data)
+        if total_space is not None:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            insert_query = "INSERT INTO vcd (storage, total_available, total_entry, total_exit, timestamp) VALUES (%s, %s, %s, %s, %s)"
+            c.execute(insert_query, (total_space, total_available, total_entry, total_exit, timestamp))
+            conn.commit()
+            print("Data inserted into database.")
+
+c.close()
+conn.close()
