@@ -199,42 +199,61 @@ while True:
 #NOTE- actually in the both the above code when i run this in the site then it stop working after 3-4 days. actually i think the issue is memory. because in every entry and exit of the car it stores the data into the memory
 so it keeps feeling the memory which creates the issue i think. so to resolve this issue what would i do is i will update the data into the filesystem instead of using the memory
 
+#EXAMPLE-3 in this i am using the file system to store and update the data instead of memory. is code me mera three file banta hai Entry.json, Exit.json, meta.json file. meta.json file jo hai wo
+#buffer_index, total_storage, total_available, total_entry, total_exit data save karta hai. aur jo Entry.json file hai humara wo store karta hai total_entry, timestamp, event. aur jo mera exit.json file hai wo store karta hai
+##total_entry, timestamp, event. jaha event mera ye btata ki ki entry hua tha ya exit
 from machine import Pin, UART
-from time import sleep, ticks_ms, ticks_diff
-import littlefs
+from time import sleep, ticks_ms
+import ujson
 
 # Configuration
 entryLoopPin = 5  # Entry loop detector pin
 exitLoopPin = 4   # Exit loop detector pin
 debounceDelay = 50  # Debounce delay in milliseconds
+BUFFER_SIZE = 100  # Define the size of the circular buffer
 
-# Initialize and mount LittleFS
-fs = littlefs.LittleFS()
-fs.mount()
+# Initialize pins
+entryLoop = Pin(entryLoopPin, Pin.IN, Pin.PULL_UP)
+exitLoop = Pin(exitLoopPin, Pin.IN, Pin.PULL_UP)
 
-# Read data from LittleFS
-try:
-    with fs.open('storage.txt', 'r') as f:
-        totalSlots = int(f.readline().strip())
-        vacantSlots = int(f.readline().strip())
-        totalEntry = int(f.readline().strip())
-        totalExit = int(f.readline().strip())
-        print("Data retrieved from LittleFS")
-except Exception:
-    totalSlots = 99  # Default total parking slots
-    vacantSlots = totalSlots
-    totalEntry = 0
-    totalExit = 0
-    print("Data initialized to default")
+# Function to initialize or read metadata
+def read_metadata():
+    try:
+        with open('metadata.json', 'r') as f:
+            return ujson.loads(f.read())
+    except OSError:
+        return {
+            'buffer_index': 0,
+            'totalSlots': 99,  # Default total parking slots
+            'vacantSlots': 99,
+            'totalEntry': 0,
+            'totalExit': 0
+        }
 
-# Function to save data to LittleFS
-def save_data():
-    with fs.open('storage.txt', 'w') as f:
-        f.write(f"{totalSlots}\n")
-        f.write(f"{vacantSlots}\n")
-        f.write(f"{totalEntry}\n")
-        f.write(f"{totalExit}\n")
-    print("Data written to LittleFS")
+# Function to save metadata
+def save_metadata(metadata):
+    with open('metadata.json', 'w') as f:
+        f.write(ujson.dumps(metadata))
+    print("Metadata written to filesystem")
+
+# Function to save event data
+def save_event_data(event_type, count, buffer_index, file_name):
+    event_data = {
+        'timestamp': ticks_ms(),
+        'event_type': event_type,
+        'count': count
+    }
+    with open(file_name, 'w') as f:
+        f.write(ujson.dumps(event_data))
+    print(f"Event data written to filesystem: {event_data}")
+
+# Load metadata
+metadata = read_metadata()
+buffer_index = metadata['buffer_index']
+totalSlots = metadata['totalSlots']
+vacantSlots = metadata['vacantSlots']
+totalEntry = metadata['totalEntry']
+totalExit = metadata['totalExit']
 
 # Initialize UART
 uart = UART(2, baudrate=9600, tx=Pin(17), rx=Pin(16))
@@ -264,11 +283,6 @@ sendAvailableSlots(vacantSlots)
 
 lastEntryTime = 0
 lastExitTime = 0
-lastWriteTime = ticks_ms()
-changesSinceLastWrite = 0
-
-WRITE_INTERVAL = 10 * 60 * 1000  # 10 minutes
-CHANGES_BEFORE_WRITE = 10
 
 # Main loop
 while True:
@@ -288,7 +302,12 @@ while True:
                 printAvailableSlots()
                 sendAvailableSlots(vacantSlots)
                 sendNewUARTData(totalSlots, vacantSlots, totalEntry, totalExit)
-                changesSinceLastWrite += 1
+                save_event_data('entry', totalEntry, buffer_index, 'entry_event.json')
+                buffer_index = (buffer_index + 1) % BUFFER_SIZE
+                metadata['buffer_index'] = buffer_index
+                metadata['vacantSlots'] = vacantSlots
+                metadata['totalEntry'] = totalEntry
+                save_metadata(metadata)
     
     # Handle exit detection
     if exitReading == 0 and (currentTime - lastExitTime >= debounceDelay):
@@ -301,13 +320,12 @@ while True:
                 printAvailableSlots()
                 sendAvailableSlots(vacantSlots)
                 sendNewUARTData(totalSlots, vacantSlots, totalEntry, totalExit)
-                changesSinceLastWrite += 1
-    
-    # Write to LittleFS if necessary
-    if changesSinceLastWrite >= CHANGES_BEFORE_WRITE or ticks_diff(currentTime, lastWriteTime) >= WRITE_INTERVAL:
-        save_data()
-        lastWriteTime = currentTime
-        changesSinceLastWrite = 0
+                save_event_data('exit', totalExit, buffer_index, 'exit_event.json')
+                buffer_index = (buffer_index + 1) % BUFFER_SIZE
+                metadata['buffer_index'] = buffer_index
+                metadata['vacantSlots'] = vacantSlots
+                metadata['totalExit'] = totalExit
+                save_metadata(metadata)
     
     # Check if data is available on UART
     if uart.any():
@@ -321,7 +339,9 @@ while True:
                 if total > 0 and 0 <= vacant <= total:
                     totalSlots = total
                     vacantSlots = vacant
-                    save_data()
+                    metadata['totalSlots'] = totalSlots
+                    metadata['vacantSlots'] = vacantSlots
+                    save_metadata(metadata)
                     print("Total Parking Slots set to:", totalSlots)
                     print("Available Parking Slots set to:", vacantSlots)
                     sendAvailableSlots(vacantSlots)
