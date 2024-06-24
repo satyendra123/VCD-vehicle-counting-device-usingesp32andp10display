@@ -351,7 +351,7 @@ while True:
     
     sleep(0.1)
 
-#to remove the issue of above i am using this code. what does this code do is it uses the os library instead of json library and there is no any buffer like that because i am not using the circular file. in this i am simply using the .txt file for storing the data
+#EXAMPLE-3 to remove the issue of above i am using this code. what does this code do is it uses the os library instead of json library and there is no any buffer like that because i am not using the circular file. in this i am simply using the .txt file for storing the data
 from machine import Pin, UART
 from time import sleep, ticks_ms
 import os
