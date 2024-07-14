@@ -1,0 +1,138 @@
+# isme maine jo hum rs485 se total parking slots aur total available ka data dalte the ise dynamic banane ke liye apne rs485 se. mai chahta hu hum ise webpage se data enter kare.
+# main.py
+
+import network
+import usocket as socket
+import ujson
+from machine import Pin, UART
+
+
+# Configuration
+entryLoopPin = 5  # Entry loop detector pin
+exitLoopPin = 4   # Exit loop detector pin
+debounceDelay = 50  # Debounce delay in milliseconds
+
+# Initialize UART
+uart = UART(2, baudrate=9600, tx=Pin(16), rx=Pin(17))
+# Path to the file storing the slot data
+slot_data_file = '/slot_data.txt'
+
+def read_slot_data():
+    if os.path.exists(slot_data_file):
+        with open(slot_data_file, 'r') as file:
+            data = file.read().split(',')
+            return int(data[0]), int(data[1]), int(data[2]), int(data[3])
+    else:
+        return 99, 99, 0, 0  # Default values
+
+def write_slot_data(totalSlots, vacantSlots, totalEntry, totalExit):
+    with open(slot_data_file, 'w') as file:
+        file.write(f'{totalSlots},{vacantSlots},{totalEntry},{totalExit}')
+
+# Read initial data
+totalSlots, vacantSlots, totalEntry, totalExit = read_slot_data()
+
+# Set up entry and exit loop detectors
+entryLoop = Pin(entryLoopPin, Pin.IN, Pin.PULL_UP)
+exitLoop = Pin(exitLoopPin, Pin.IN, Pin.PULL_UP)
+
+wifi_ssid = "YourWiFiSSID"
+wifi_password = "YourWiFiPassword"
+
+station = network.WLAN(network.STA_IF)
+station.active(True)
+station.connect(wifi_ssid, wifi_password)
+
+while not station.isconnected():
+    pass
+
+print("Connected to Wi-Fi:", wifi_ssid)
+print("IP Address:", station.ifconfig()[0])
+
+# HTML form for updating parking slot data
+html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Parking Slot Configuration</title>
+</head>
+<body>
+    <h1>Parking Slot Configuration</h1>
+    <form action="/" method="post">
+        <label for="totalSlots">Total Slots:</label><br>
+        <input type="number" id="totalSlots" name="totalSlots" value="{totalSlots}"><br><br>
+        <label for="vacantSlots">Vacant Slots:</label><br>
+        <input type="number" id="vacantSlots" name="vacantSlots" value="{vacantSlots}"><br><br>
+        <input type="submit" value="Update">
+    </form>
+    <h2>Current Data</h2>
+    <p>Total Parking Slots: {totalSlots}</p>
+    <p>Vacant Parking Slots: {vacantSlots}</p>
+</body>
+</html>
+""".format(totalSlots=totalSlots, vacantSlots=vacantSlots)
+
+def sendAvailableSlots(slots):
+    slots_str = f'{slots:02d}'
+    message = f'|C|1|4|1|28-0-#u{slots_str}|'
+    print(f"Sending message: {message}")  # Debug print
+
+def sendNewUARTData(totalSlots, vacantSlots, totalEntry, totalExit):
+    data_array = [0xAA, totalSlots, vacantSlots, totalEntry, totalExit, 0xCC]
+    print(f"New UART Data Sent: {data_array}")
+
+def printAvailableSlots():
+    print("Available Parking Slots:", vacantSlots)
+
+def printTotalSlots():
+    print("Total Parking Slots:", totalSlots)
+
+# Print initial available slots
+printAvailableSlots()
+printTotalSlots()
+sendAvailableSlots(vacantSlots)
+
+lastEntryTime = 0
+lastExitTime = 0
+
+# Start web server in a separate thread
+import _thread
+_thread.start_new_thread(start_web_server, ())
+
+# Main loop
+while True:
+    currentTime = ticks_ms()
+    
+    entryReading = entryLoop.value()
+    exitReading = exitLoop.value()
+    
+    # Handle entry detection
+    if entryReading == 0 and (currentTime - lastEntryTime >= debounceDelay):
+        sleep(0.05)
+        if entryLoop.value() == 0:
+            lastEntryTime = currentTime
+            if vacantSlots > 0:
+                vacantSlots -= 1
+                totalEntry += 1
+                printAvailableSlots()
+                sendAvailableSlots(vacantSlots)
+                sendNewUARTData(totalSlots, vacantSlots, totalEntry, totalExit)
+                write_slot_data(totalSlots, vacantSlots, totalEntry, totalExit)
+                sleep(1)
+    
+    # Handle exit detection
+    if exitReading == 0 and (currentTime - lastExitTime >= debounceDelay):
+        sleep(0.05)
+        if exitLoop.value() == 0:
+            lastExitTime = currentTime
+            if vacantSlots < totalSlots:
+                vacantSlots += 1
+                totalExit += 1
+                printAvailableSlots()
+                sendAvailableSlots(vacantSlots)
+                sendNewUARTData(totalSlots, vacantSlots, totalEntry, totalExit)
+                write_slot_data(totalSlots, vacantSlots, totalEntry, totalExit)
+                sleep(1)
+    
+    sleep(0.01)
+
