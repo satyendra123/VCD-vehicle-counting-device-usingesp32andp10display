@@ -1,6 +1,8 @@
 # isme maine jo hum rs485 se total parking slots aur total available ka data dalte the ise dynamic banane ke liye apne rs485 se. mai chahta hu hum ise webpage se data enter kare.
 # main.py
 
+# main.py
+
 import network
 import usocket as socket
 import ujson
